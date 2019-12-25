@@ -7,10 +7,7 @@ module Mqjob
       @topic = self.class.topic
       @topic_opts = self.class.topic_opts
 
-      @client = @topic_opts[:client] || Mqjob.default_client
-
-      plugin_name = @topic_opts[:plugin] || Mqjob.config.plugin
-      @mq = Plugin.const_get(plugin_name.to_s.capitalize).new(@client)
+      @mq = Plugin.client(@topic_opts[:client])
     end
 
     def ack!; :ack end
@@ -19,8 +16,10 @@ module Mqjob
 
     def do_work(cmd, msg)
       @pool.post do
-        RequestStore.clear! if Object.const_defined?(RequestStore)
+        Mqjob.logger.debug(__method__){'Begin post job to thread pool'}
+        RequestStore.clear! if Object.const_defined?(:RequestStore)
         process_work(cmd, msg)
+        Mqjob.logger.debug(__method__){'Finish post job to thread pool'}
       end
     end
 
@@ -41,21 +40,22 @@ module Mqjob
         result = if respond_to?(:perform_full_msg)
           perform_full_msg(cmd, msg)
         else
-          # TODO 可能需要先反序列化
           perform(msg.payload)
         end
-      rescue => _exp
+      rescue => exp
+        Mqjob.logger.error(__method__){exp}
         result = :error
       end
 
-      return if !@topic_opts[:ack]
-
       case result
       when :error, :reject
+        Mqjob.logger.info(__method__) {"Redeliver messages! Current message id is: #{msg.message_id.inspect}"}
         msg.nack
       when :requeue
-        # TODO
+        Mqjob.logger.info(__method__) {"Requeue! message id is: #{msg.message_id.inspect}"}
+        self.class.enqueue(msg.payload, in: 10)
       else
+        Mqjob.logger.info(__method__) {"Acknowledge message!"}
         msg.ack
       end
     end
@@ -73,20 +73,21 @@ module Mqjob
       # plugin: :pulsar,
       # prefetch: 1,
       # subscription_mode: SUBSCRIPTION_MODES, # 不同类型需要不同配置参数，互斥模式下需要指定订阅名
-      # auto_ack: true,
       # logger: MyLogger,
       # threads: 4, # 每个线程创建一个subscription
       def from_topic(name, opts={})
         @topic = name
         @topic_opts = opts
-        if opts.key?(:plugin)
-          require "plugin/#{opts[:plugin]}"
-        end
       end
 
+      # opts
+      #   in publish message in X seconds
+      #   at publish message at specific time
       def enqueue(msg, opts={})
-        @producer ||= ::Mqjob::Producer.new(topic_opts[:client])
-        @producer.publish(topic, msg, topic_opts)
+        @mq ||= Plugin.client(topic_opts[:client])
+
+        @mq.publish(topic, msg, topic_opts)
+        true
       end
     end
   end

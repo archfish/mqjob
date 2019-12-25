@@ -1,3 +1,4 @@
+require 'logger'
 require "mqjob/version"
 require 'concurrent/executors'
 require 'serverengine'
@@ -34,6 +35,12 @@ module Mqjob
     @registed_class.uniq!
   end
 
+  def logger
+    config.logger ||= Logger.new(STDOUT).tap do |logger|
+                        logger.formatter = Formatter.new
+                      end
+  end
+
   class Config
     attr_accessor :client,
                   :plugin,
@@ -42,7 +49,6 @@ module Mqjob
                   :threads,
                   :hooks,
                   :logger,
-                  :auto_ack,
                   :subscription_mode
 
     def initialize(opts = {})
@@ -52,8 +58,6 @@ module Mqjob
       assign_attributes(opts)
 
       remove_empty_instance_variables!
-
-      require "plugin/#{@plugin}"
     end
 
     def assign_attributes(opts)
@@ -79,6 +83,17 @@ module Mqjob
 
         @before_fork = hooks[:before_fork]
         @after_fork = hooks[:after_fork]
+      end
+    end
+
+    class Formatter < ::Logger::Formatter
+      def call(severity, timestamp, progname, msg)
+        case msg
+        when ::StandardError
+          msg = [msg.message, msg&.backtrace].join(":\n")
+        end
+
+        super
       end
     end
   end

@@ -6,20 +6,34 @@ module Plugin
       create_consumer(topic, opts).listen do |cmd, msg|
         worker.do_work(cmd, msg)
       end
-
-      @consumer.close
     end
 
+    # opts
+    #   in publish message in X seconds
+    #   at publish message at specific time
     def publish(topic, msg, opts = {})
-      base_cmd = Pulsar::Proto::BaseCommand.new(
-        type: Pulsar::Proto::BaseCommand::Type::SEND,
-        send: Pulsar::Proto::CommandSend.new(
+      base_cmd = ::Pulsar::Proto::BaseCommand.new(
+        type: ::Pulsar::Proto::BaseCommand::Type::SEND,
+        send: ::Pulsar::Proto::CommandSend.new(
           num_messages: 1
         )
       )
 
-      # FIXME encode first!
-      p_msg = PulsarSdk::Producer::Message.new(msg)
+      get_timestamp = lambda {|v| (v.to_f * 1000).floor}
+
+      deliver_at = case
+                  when opts[:in]
+                    Time.now.localtime + opts[:in].to_f
+                  when opts[:at]
+                    opts[:at]
+                  else
+                    Time.now.localtime
+                  end
+
+      metadata = ::Pulsar::Proto::MessageMetadata.new(
+        deliver_at_time: get_timestamp.call(deliver_at)
+      )
+      p_msg = ::PulsarSdk::Producer::Message.new(msg, metadata)
 
       create_producer(topic, opts).execute_async(base_cmd, p_msg)
     end
@@ -35,7 +49,7 @@ module Plugin
     private
     def create_consumer(topic, opts)
       @consumer ||= begin
-        consumer_opts = PulsarSdk::Options::Consumer.new(
+        consumer_opts = ::PulsarSdk::Options::Consumer.new(
           topic: topic,
           prefetch: opts[:prefetch] || 1,
           listen_wait: 0.1
@@ -47,7 +61,7 @@ module Plugin
 
     def create_producer(topic, opts)
       @producer ||= begin
-        producer_opts = PulsarSdk::Options::Producer.new(
+        producer_opts = ::PulsarSdk::Options::Producer.new(
           topic: topic
         )
 
