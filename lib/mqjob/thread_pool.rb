@@ -35,7 +35,7 @@ module Mqjob
 
     def wait
       @job_mutex.synchronize do
-        while scheduled_task_count - completed_task_count >= max_length
+        while running? && (scheduled_task_count - completed_task_count >= max_length)
           @job_finish.wait(@job_mutex, 0.05)
         end
       end

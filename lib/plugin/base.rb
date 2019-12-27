@@ -2,6 +2,7 @@ module Plugin
   class Base
     def initialize(client)
       @client = client
+      @subscription_mode = ::Mqjob.config.subscription_mode
     end
 
     def listen(topic, worker, opts = {}); end

@@ -3,7 +3,7 @@ require 'plugin/base'
 module Plugin
   extend self
 
-  def client(c, plugin = nil)
+  def client(c, plugin: nil)
     plugin = init_plugin(plugin)
     c ||= Mqjob.default_client
 

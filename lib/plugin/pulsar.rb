@@ -4,6 +4,7 @@ module Plugin
   class Pulsar < Base
     def listen(topic, worker, opts = {})
       create_consumer(topic, opts).listen do |cmd, msg|
+        Mqjob.logger.debug("#{self.class.name}::#{__method__}"){msg.payload}
         worker.do_work(cmd, msg)
       end
     end
@@ -51,9 +52,13 @@ module Plugin
       @consumer ||= begin
         consumer_opts = ::PulsarSdk::Options::Consumer.new(
           topic: topic,
+          subscription_type: (opts[:subscription_mode] || @subscription_mode).to_s.capitalize.to_sym,
+          subscription_name: opts[:subscription_name],
           prefetch: opts[:prefetch] || 1,
           listen_wait: 0.1
         )
+
+        Mqjob.logger.debug(__method__){consumer_opts.inspect}
 
         @client.subscribe(consumer_opts)
       end

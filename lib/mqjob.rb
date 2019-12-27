@@ -5,6 +5,7 @@ require 'serverengine'
 require 'mqjob/worker_group'
 require 'mqjob/worker'
 require 'plugin'
+require 'concurrent/configuration'
 
 module Mqjob
   extend self
@@ -52,8 +53,8 @@ module Mqjob
                   :threads,
                   :parallel,
                   :hooks,
-                  :logger,
                   :subscription_mode
+    attr_reader :logger
 
     def initialize(opts = {})
       @hooks = Hooks.new(opts.delete(:hooks))
@@ -63,6 +64,20 @@ module Mqjob
       assign_attributes(opts)
 
       remove_empty_instance_variables!
+    end
+
+    def logger=(v)
+      # fvcking Concurrent::Logging
+      unless v.respond_to?(:call)
+        v.class_eval <<-RUBY
+          def call(level, progname, message, &block)
+            add(level, message, progname, &block)
+          end
+        RUBY
+      end
+
+      @logger = v
+      Concurrent.global_logger = v
     end
 
     def assign_attributes(opts)

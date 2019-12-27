@@ -76,8 +76,9 @@ module Mqjob
       # subscription_name
       # logger: MyLogger
       def from_topic(name, opts={})
-        @topic = name
+        @topic = name.respond_to?(:call) ? name.call : name
         @topic_opts = opts
+        @topic_opts[:subscription_name] ||= (self.name.split('::') << 'Consumer').join
       end
 
       # opts
