@@ -1,6 +1,6 @@
 require 'logger'
 require "mqjob/version"
-require 'concurrent/executors'
+require "mqjob/thread_pool"
 require 'serverengine'
 require 'mqjob/worker_group'
 require 'mqjob/worker'
@@ -25,6 +25,10 @@ module Mqjob
     config.client
   end
 
+  def parallel
+    config.parallel
+  end
+
   def registed_class
     @registed_class ||= []
   end
@@ -45,8 +49,8 @@ module Mqjob
     attr_accessor :client,
                   :plugin,
                   :daemonize,
-                  :workers,
                   :threads,
+                  :parallel,
                   :hooks,
                   :logger,
                   :subscription_mode
@@ -54,6 +58,7 @@ module Mqjob
     def initialize(opts = {})
       @hooks = Hooks.new(opts.delete(:hooks))
       @plugin = :pulsar
+      @parallel = 2
 
       assign_attributes(opts)
 

@@ -73,8 +73,8 @@ module Mqjob
       # plugin: :pulsar,
       # prefetch: 1,
       # subscription_mode: SUBSCRIPTION_MODES, # 不同类型需要不同配置参数，互斥模式下需要指定订阅名
-      # logger: MyLogger,
-      # threads: 4, # 每个线程创建一个subscription
+      # subscription_name
+      # logger: MyLogger
       def from_topic(name, opts={})
         @topic = name
         @topic_opts = opts

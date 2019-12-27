@@ -3,11 +3,14 @@ module Mqjob
     def initialize
       @stoped = false
       # 统一线程池，防止数据库连接池不够用，推荐设置为10
-      @pool = ::Concurrent::FixedThreadPool.new(threads)
+      @pool = ::Mqjob::ThreadPool.new(threads)
+
+      pull_job_size = [::Mqjob.parallel, threads].min
+      @pull_pool = ::Mqjob::ThreadPool.new(pull_job_size)
     end
 
     def before_fork
-      puts "call #{__method__}"
+      Mqjob.hooks.before_fork&.call
     end
 
     def run
@@ -16,7 +19,9 @@ module Mqjob
       Mqjob.hooks.after_fork&.call
 
       workers.each do |worker|
-        worker.run
+        @pull_pool.post do
+          worker.run
+        end
       end
     end
 
@@ -45,7 +50,7 @@ module Mqjob
     #   threads 设置线程池大小
     def self.configure(opts)
       thread_size = opts[:threads]
-      raise "threads was required!" if thread_size.nil?
+      raise "threads was required!" if thread_size.to_i.zero?
       workers = Array(opts[:clazz])
       raise "clazz was required!" if workers.empty?
 
