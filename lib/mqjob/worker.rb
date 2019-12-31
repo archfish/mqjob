@@ -24,6 +24,7 @@ module Mqjob
     end
 
     def run
+      Mqjob.logger.debug("#{self.class.name}::#{__method__}"){'trigger'}
       @mq.listen(@topic, self, @topic_opts)
     end
 
@@ -38,8 +39,10 @@ module Mqjob
       result = nil
       begin
         result = if respond_to?(:perform_full_msg)
+          Mqjob.logger.info(__method__){"perform_full_msg: #{msg.inspect}"}
           perform_full_msg(cmd, msg)
         else
+          Mqjob.logger.info(__method__){"perform: #{msg.payload.inspect}"}
           perform(msg.payload)
         end
       rescue => exp

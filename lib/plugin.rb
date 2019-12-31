@@ -13,6 +13,8 @@ module Plugin
   def init_plugin(name)
     name ||= Mqjob.config.plugin
 
+    Mqjob.logger.debug("#{self.name}::#{__method__}"){"select plugin: #{name}"}
+
     require "plugin/#{name}"
 
     name.to_s.capitalize
