@@ -12,7 +12,10 @@ module Plugin
     # opts
     #   in publish message in X seconds
     #   at publish message at specific time
+    #   init_subscription Boolean
     def publish(topic, msg, opts = {})
+      create_consumer(topic, opts) if opts[:init_subscription]
+
       base_cmd = ::Pulsar::Proto::BaseCommand.new(
         type: ::Pulsar::Proto::BaseCommand::Type::SEND,
         send: ::Pulsar::Proto::CommandSend.new(

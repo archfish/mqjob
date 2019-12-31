@@ -87,10 +87,11 @@ module Mqjob
       # opts
       #   in publish message in X seconds
       #   at publish message at specific time
+      #   init_subscription Boolean 是否先初始化一个订阅
       def enqueue(msg, opts={})
         @mq ||= Plugin.client(topic_opts[:client])
 
-        @mq.publish(topic, msg, topic_opts)
+        @mq.publish(topic, msg, topic_opts.merge(opts))
         true
       end
     end
