@@ -17,7 +17,6 @@ module Mqjob
     def do_work(cmd, msg)
       @pool.post do
         Mqjob.logger.debug(__method__){'Begin post job to thread pool'}
-        RequestStore.clear! if Object.const_defined?(:RequestStore)
         process_work(cmd, msg)
         Mqjob.logger.debug(__method__){'Finish post job to thread pool'}
       end
@@ -36,6 +35,8 @@ module Mqjob
 
     private
     def process_work(cmd, msg)
+      RequestStore.clear! if Object.const_defined?(:RequestStore)
+
       result = nil
       begin
         result = if respond_to?(:perform_full_msg)
@@ -88,10 +89,26 @@ module Mqjob
       #   in publish message in X seconds
       #   at publish message at specific time
       #   init_subscription Boolean 是否先初始化一个订阅
+      #   perform_now Boolean 立即执行，通常用于测试环境减少流程
       def enqueue(msg, opts={})
-        @mq ||= Plugin.client(topic_opts[:client])
+        if !opts[:perform_now]
+          @mq ||= Plugin.client(topic_opts[:client])
+          @mq.publish(topic, msg, topic_opts.merge(opts))
+          return true
+        end
 
-        @mq.publish(topic, msg, topic_opts.merge(opts))
+        begin
+          worker = self.new({})
+          if worker.respond_to?(:perform)
+            msg = JSON.parse(JSON.dump(msg))
+            Mqjob.logger.info('perform message now'){msg.inspect}
+            worker.send(:process_work, nil, OpenStruct.new(payload: msg))
+          else
+            Mqjob.logger.error('perform_now required 「perform」 method, 「perform_full_msg」not supported!')
+          end
+        rescue => exp
+          Mqjob.logger.error("#{self.name} perform_now") {exp}
+        end
         true
       end
     end
