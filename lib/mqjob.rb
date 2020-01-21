@@ -30,6 +30,7 @@ module Mqjob
     config.parallel
   end
 
+  # FIXME when job inherit from parent job it will not appear here!!
   def registed_class
     @registed_class ||= []
   end

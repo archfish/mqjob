@@ -23,7 +23,6 @@ module Mqjob
     end
 
     def run
-      Mqjob.logger.debug("#{self.class.name}::#{__method__}"){'trigger'}
       @mq.listen(@topic, self, @topic_opts)
     end
 
@@ -57,6 +56,7 @@ module Mqjob
         msg.nack
       when :requeue
         Mqjob.logger.info(__method__) {"Requeue! message id is: #{msg.message_id.inspect}"}
+        msg.ack
         self.class.enqueue(msg.payload, in: 10)
       else
         Mqjob.logger.info(__method__) {"Acknowledge message!"}
@@ -79,9 +79,14 @@ module Mqjob
       # subscription_mode: SUBSCRIPTION_MODES, # 不同类型需要不同配置参数，互斥模式下需要指定订阅名
       # subscription_name
       # logger: MyLogger
+      # topic_type [:normal, :regex] default normal
       def from_topic(name, opts={})
         @topic = name.respond_to?(:call) ? name.call : name
         @topic_opts = opts
+
+        topic_type = @topic_opts[:topic_type]&.to_sym
+        @topic_opts[:topic_type] = topic_type || :normal
+
         @topic_opts[:subscription_name] ||= (self.name.split('::') << 'Consumer').join
       end
 
@@ -91,6 +96,13 @@ module Mqjob
       #   init_subscription Boolean 是否先初始化一个订阅
       #   perform_now Boolean 立即执行，通常用于测试环境减少流程
       def enqueue(msg, opts={})
+        if topic_opts[:topic_type] != :normal
+          Mqjob.logger.error(__method__){
+            "message enqueue only support topic_type set to normal, but got 「#{topic_opts[:topic_type]}」! After action skipped!"
+          }
+          return false
+        end
+
         if !opts[:perform_now]
           @mq ||= Plugin.client(topic_opts[:client])
           @mq.publish(topic, msg, topic_opts.merge(opts))

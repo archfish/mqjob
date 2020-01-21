@@ -53,8 +53,15 @@ module Plugin
     private
     def create_consumer(topic, opts)
       @consumer ||= begin
+        topic_type = :topic
+        if opts[:topic_type].to_sym == :regex
+          topic_type = :topics_pattern
+        elsif topic.is_a?(Array)
+          topic_type = :topics
+        end
+
         consumer_opts = ::PulsarSdk::Options::Consumer.new(
-          topic: topic,
+          topic_type => topic,
           subscription_type: (opts[:subscription_mode] || @subscription_mode).to_s.capitalize.to_sym,
           subscription_name: opts[:subscription_name],
           prefetch: opts[:prefetch] || 1,
