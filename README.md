@@ -43,11 +43,6 @@ Inspired By [Sneakers](https://github.com/jondot/sneakers).
     How many Thread will create for job perform in process. It will init a thread pool.
     IO-intensive tasks can be appropriately increased, and CPU-intensive tasks can be appropriately reduced.
 
-  - parallel
-
-    How many job can pull at the same time. For example, `WORKERS` size is 5 and parallel set to 5, it mean 5 worker can pull message from MQ in one job cycle.
-    It limit by `threads` config, should no greater than `threads`, otherwise will restore to `threads` value.
-
   - hooks
 
     config `before_fork` and `after_fork`. NOT implement yet.

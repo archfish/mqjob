@@ -26,10 +26,6 @@ module Mqjob
     config&.client
   end
 
-  def parallel
-    config&.parallel
-  end
-
   # FIXME when job inherit from parent job it will not appear here!!
   def registed_class
     @registed_class ||= []
@@ -52,14 +48,12 @@ module Mqjob
                   :plugin,
                   :daemonize,
                   :threads,
-                  :parallel,
                   :subscription_mode
     attr_reader :logger, :hooks
 
     def initialize(opts = {})
       @hooks = Hooks.new(opts.delete(:hooks))
       @plugin = :pulsar
-      @parallel = 2
 
       assign_attributes(opts)
 
