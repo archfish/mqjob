@@ -16,9 +16,19 @@ module Mqjob
 
     def do_work(cmd, msg)
       @pool.post do
-        Mqjob.logger.debug(__method__){'Begin post job to thread pool'}
-        process_work(cmd, msg)
-        Mqjob.logger.debug(__method__){'Finish post job to thread pool'}
+        wrap_perform = ::Mqjob.hooks&.wrap_perform
+
+        ::Mqjob.logger.debug(__method__){'Begin post job to thread pool'}
+
+        if wrap_perform.nil?
+          process_work(cmd, msg)
+        else
+          wrap_perform.call do
+            process_work(cmd, msg)
+          end
+        end
+
+        ::Mqjob.logger.debug(__method__){'Finish post job to thread pool'}
       end
     end
 
@@ -39,27 +49,27 @@ module Mqjob
       result = nil
       begin
         result = if respond_to?(:perform_full_msg)
-          Mqjob.logger.info(__method__){"perform_full_msg: #{msg.inspect}"}
+          ::Mqjob.logger.info(__method__){"perform_full_msg: #{msg.inspect}"}
           perform_full_msg(cmd, msg)
         else
-          Mqjob.logger.info(__method__){"perform: #{msg.payload.inspect}"}
+          ::Mqjob.logger.info(__method__){"perform: #{msg.payload.inspect}"}
           perform(msg.payload)
         end
       rescue => exp
-        Mqjob.logger.error(__method__){exp}
+        ::Mqjob.logger.error(__method__){exp}
         result = :error
       end
 
       case result
       when :error, :reject
-        Mqjob.logger.info(__method__) {"Redeliver messages! Current message id is: #{msg.message_id.inspect}"}
+        ::Mqjob.logger.info(__method__) {"Redeliver messages! Current message id is: #{msg.message_id.inspect}"}
         msg.nack
       when :requeue
-        Mqjob.logger.info(__method__) {"Requeue! message id is: #{msg.message_id.inspect}"}
+        ::Mqjob.logger.info(__method__) {"Requeue! message id is: #{msg.message_id.inspect}"}
         msg.ack
         self.class.enqueue(msg.payload, in: 10)
       else
-        Mqjob.logger.info(__method__) {"Acknowledge message!"}
+        ::Mqjob.logger.info(__method__) {"Acknowledge message!"}
         msg.ack
       end
     end
@@ -97,7 +107,7 @@ module Mqjob
       #   perform_now Boolean 立即执行，通常用于测试环境减少流程
       def enqueue(msg, opts={})
         if topic_opts[:topic_type] != :normal
-          Mqjob.logger.error(__method__){
+          ::Mqjob.logger.error(__method__){
             "message enqueue only support topic_type set to normal, but got 「#{topic_opts[:topic_type]}」! After action skipped!"
           }
           return false
@@ -113,13 +123,13 @@ module Mqjob
           worker = self.new({})
           if worker.respond_to?(:perform)
             msg = JSON.parse(JSON.dump(msg))
-            Mqjob.logger.info('perform message now'){msg.inspect}
+            ::Mqjob.logger.info('perform message now'){msg.inspect}
             worker.send(:process_work, nil, OpenStruct.new(payload: msg))
           else
-            Mqjob.logger.error('perform_now required 「perform」 method, 「perform_full_msg」not supported!')
+            ::Mqjob.logger.error('perform_now required 「perform」 method, 「perform_full_msg」not supported!')
           end
         rescue => exp
-          Mqjob.logger.error("#{self.name} perform_now") {exp}
+          ::Mqjob.logger.error("#{self.name} perform_now") {exp}
         end
         true
       end

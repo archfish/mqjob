@@ -4,24 +4,19 @@ module Mqjob
       @stoped = false
       # 统一线程池，防止数据库连接池不够用，推荐设置为10
       @pool = ::Mqjob::ThreadPool.new(threads)
-
-      pull_job_size = [::Mqjob.parallel, threads].min
-      @pull_pool = ::Mqjob::ThreadPool.new(pull_job_size)
     end
 
     def before_fork
-      Mqjob.hooks.before_fork&.call
+      ::Mqjob.hooks.before_fork&.call
     end
 
     def run
       return if @stoped
 
-      Mqjob.hooks.after_fork&.call
+      ::Mqjob.hooks.after_fork&.call
 
       workers.each do |worker|
-        @pull_pool.post do
-          worker.run
-        end
+        worker.run
       end
     end
 
@@ -70,7 +65,7 @@ module Mqjob
         private :threads, :workers
       RUBY
 
-      Mqjob.const_set(md_name, md)
+      ::Mqjob.const_set(md_name, md)
     end
   end
 end

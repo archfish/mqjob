@@ -19,15 +19,15 @@ module Mqjob
   end
 
   def hooks
-    @config.hooks
+    config&.hooks
   end
 
   def default_client
-    config.client
+    config&.client
   end
 
   def parallel
-    config.parallel
+    config&.parallel
   end
 
   # FIXME when job inherit from parent job it will not appear here!!
@@ -42,7 +42,7 @@ module Mqjob
   end
 
   def logger
-    config.logger ||= Logger.new(STDOUT).tap do |logger|
+    config.logger ||= ::Logger.new(STDOUT).tap do |logger|
                         logger.formatter = Formatter.new
                       end
   end
@@ -53,9 +53,8 @@ module Mqjob
                   :daemonize,
                   :threads,
                   :parallel,
-                  :hooks,
                   :subscription_mode
-    attr_reader :logger
+    attr_reader :logger, :hooks
 
     def initialize(opts = {})
       @hooks = Hooks.new(opts.delete(:hooks))
@@ -67,16 +66,19 @@ module Mqjob
       remove_empty_instance_variables!
     end
 
+    def hooks=(v)
+      @hooks.update(v)
+    end
+
     def logger=(v)
       # fvcking Concurrent::Logging
       unless v.respond_to?(:call)
-        v.class_eval <<-RUBY
+        v.class.class_eval <<-RUBY
           def call(level, progname, message, &block)
             add(level, message, progname, &block)
           end
         RUBY
       end
-
       @logger = v
       Concurrent.global_logger = v
     end
@@ -97,25 +99,32 @@ module Mqjob
     end
 
     class Hooks
-      attr_reader :before_fork, :after_fork
+      attr_reader :before_fork, :after_fork, :wrap_perform
 
-      def initialize(hooks)
-        return if hooks.nil? || hooks.empty?
+      def initialize(opts)
+        update(opts)
+      end
 
-        @before_fork = hooks[:before_fork]
-        @after_fork = hooks[:after_fork]
+      def update(opts)
+        return if opts.nil? || opts.empty?
+
+        raise "hooks shuld be a Proc map!" unless opts.values.all?{|x| x.nil? || x.is_a?(Proc)}
+
+        @before_fork = opts[:before_fork]
+        @after_fork = opts[:after_fork]
+        @wrap_perform = opts[:wrap_perform]
       end
     end
+  end
 
-    class Formatter < ::Logger::Formatter
-      def call(severity, timestamp, progname, msg)
-        case msg
-        when ::StandardError
-          msg = [msg.message, msg&.backtrace].join(":\n")
-        end
-
-        super
+  class Formatter < ::Logger::Formatter
+    def call(severity, timestamp, progname, msg)
+      case msg
+      when ::StandardError
+        msg = [msg.message, msg&.backtrace].join(":\n")
       end
+
+      super
     end
   end
 end

@@ -10,5 +10,9 @@ require "mqjob"
 # require "pry"
 # Pry.start
 
+Mqjob.configure {
+
+}
+
 require "irb"
 IRB.start(__FILE__)
