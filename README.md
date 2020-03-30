@@ -51,6 +51,15 @@ Inspired By [Sneakers](https://github.com/jondot/sneakers).
   - hooks
 
     config `before_fork` and `after_fork`. NOT implement yet.
+    if you using ActiveRecord, set `wrap_perform` as follow avoid database connection broken.
+
+    ```ruby
+    Mqjob.configure do |config|
+      config.hooks = {
+        wrap_perform: lambda {|&b| ActiveRecord::Base.connection_pool.with_connection {b.call}}
+      }
+    end
+    ```
 
   - subscription_mode
 

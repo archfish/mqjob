@@ -16,19 +16,24 @@ module Mqjob
 
     def do_work(cmd, msg)
       @pool.post do
-        wrap_perform = ::Mqjob.hooks&.wrap_perform
+        begin
+          wrap_perform = ::Mqjob.hooks&.wrap_perform
 
-        ::Mqjob.logger.debug(__method__){'Begin post job to thread pool'}
+          ::Mqjob.logger.debug(__method__){'Begin process'}
 
-        if wrap_perform.nil?
-          process_work(cmd, msg)
-        else
-          wrap_perform.call do
+          if wrap_perform.nil?
             process_work(cmd, msg)
+          else
+            wrap_perform.call do
+              process_work(cmd, msg)
+            end
           end
-        end
 
-        ::Mqjob.logger.debug(__method__){'Finish post job to thread pool'}
+          ::Mqjob.logger.debug(__method__){'Finish process'}
+        rescue => exp
+          ::Mqjob.logger.error(__method__){"message process error: #{exp.message}! cmd: #{cmd}, msg: #{msg}"}
+          ::Mqjob.logger.error(__method__){exp}
+        end
       end
     end
 
