@@ -65,7 +65,7 @@ module Plugin
           subscription_type: (opts[:subscription_mode] || @subscription_mode).to_s.capitalize.to_sym,
           subscription_name: opts[:subscription_name],
           prefetch: opts[:prefetch] || 1,
-          listen_wait: 0.05
+          listen_wait: 0.1
         )
 
         ::Mqjob.logger.debug(__method__){consumer_opts.inspect}
