@@ -1,9 +1,11 @@
 require 'logger'
+require 'mqjob/exception'
 require "mqjob/version"
 require "mqjob/thread_pool"
 require 'serverengine'
 require 'mqjob/worker_group'
 require 'mqjob/worker'
+require 'mqjob/message'
 require 'plugin'
 require 'concurrent/configuration'
 
@@ -11,6 +13,7 @@ module Mqjob
   extend self
 
   attr_reader :config
+  attr_reader :synchronize
 
   def configure(&block)
     @config ||= Config.new
@@ -43,17 +46,29 @@ module Mqjob
                       end
   end
 
+  # disabled asynchronous thread, using for debug
+  def synchronize!
+    @__synchronize__ = true
+  end
+
+  def synchronize?
+    @__synchronize__
+  end
+
   class Config
     attr_accessor :client,
                   :plugin,
                   :daemonize,
                   :threads,
-                  :subscription_mode
+                  :subscription_mode,
+                  :max_retry_times
+
     attr_reader :logger, :hooks
 
     def initialize(opts = {})
       @hooks = Hooks.new(opts.delete(:hooks))
       @plugin = :pulsar
+      @max_retry_times = 3
 
       assign_attributes(opts)
 

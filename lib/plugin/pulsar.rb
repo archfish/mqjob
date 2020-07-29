@@ -5,7 +5,17 @@ module Plugin
     def listen(topic, worker, opts = {})
       create_consumer(topic, opts).listen do |cmd, msg|
         ::Mqjob.logger.debug("#{self.class.name}::#{__method__}"){"receive msg: #{msg.payload}"}
-        worker.do_work(cmd, msg)
+        message = ::Mqjob::Message.new(
+          key: msg.key,
+          body: msg.payload,
+          headers: msg.headers,
+          partition_key: msg.partition_key,
+          timestamp: msg.timestamp,
+          ack_callback: Proc.new{msg.ack},
+          nack_callback: Proc.new{msg.nack}
+        )
+        ::Mqjob.logger.debug("#{self.class.name}::#{__method__} Message"){message}
+        worker.do_work(message)
       end
     end
 
@@ -70,7 +80,7 @@ module Plugin
 
         ::Mqjob.logger.debug(__method__){consumer_opts.inspect}
 
-        @client.subscribe(consumer_opts)
+        client.subscribe(consumer_opts)
       end
     end
 
@@ -80,7 +90,7 @@ module Plugin
           topic: topic
         )
 
-        @client.create_producer(producer_opts)
+        client.create_producer(producer_opts)
       end
     end
 

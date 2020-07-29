@@ -1,7 +1,9 @@
 module Plugin
   class Base
-    def initialize(client)
-      @client = client
+    attr_reader :client
+
+    def initialize(c)
+      @client = c
       @subscription_mode = ::Mqjob.config.subscription_mode
     end
 

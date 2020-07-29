@@ -14,26 +14,32 @@ module Mqjob
     def reject!; :reject; end
     def requeue!; :requeue; end
 
-    def do_work(cmd, msg)
-      @pool.post do
+    def do_work(msg)
+      act = Proc.new do
         begin
           wrap_perform = ::Mqjob.hooks&.wrap_perform
 
           ::Mqjob.logger.debug(__method__){'Begin process'}
 
           if wrap_perform.nil?
-            process_work(cmd, msg)
+            process_work(msg)
           else
             wrap_perform.call do
-              process_work(cmd, msg)
+              process_work(msg)
             end
           end
 
           ::Mqjob.logger.debug(__method__){'Finish process'}
         rescue => exp
-          ::Mqjob.logger.error(__method__){"message process error: #{exp.message}! cmd: #{cmd}, msg: #{msg}"}
+          ::Mqjob.logger.error(__method__){"message process error: #{exp.message}! msg: #{msg}"}
           ::Mqjob.logger.error(__method__){exp}
         end
+      end
+
+      return act.call if ::Mqjob.synchronize?
+
+      @pool.post do
+        act.call
       end
     end
 
@@ -48,34 +54,37 @@ module Mqjob
     def perform(msg); end
 
     private
-    def process_work(cmd, msg)
+    def process_work(msg)
       RequestStore.clear! if Object.const_defined?(:RequestStore)
 
-      result = nil
+      ::Mqjob.logger.info(__method__){"process_work: #{msg.inspect}"}
       begin
         result = if respond_to?(:perform_full_msg)
-          ::Mqjob.logger.info(__method__){"perform_full_msg: #{msg.inspect}"}
-          perform_full_msg(cmd, msg)
+          perform_full_msg(msg)
         else
-          ::Mqjob.logger.info(__method__){"perform: #{msg.payload.inspect}"}
-          perform(msg.payload)
+          perform(msg.body)
+        end
+
+        case result
+        when :error, :reject
+          ::Mqjob.logger.info(__method__) {"Redeliver messages! Current message id is: #{msg.message_id.inspect}"}
+          msg.nack
+        when :requeue
+          ::Mqjob.logger.info(__method__) {"Requeue! message id is: #{msg.message_id.inspect}"}
+          msg.ack
+          self.class.enqueue(msg.payload, in: 10)
+        else
+          ::Mqjob.logger.info(__method__) {"Acknowledge message!"}
+          msg.ack
+        end
+      rescue ::Mqjob::Exception::Retry
+        if msg.retried < ::Mqjob.config&.max_retry_times.to_i
+          msg.retry!
+          retry
         end
       rescue => exp
         ::Mqjob.logger.error(__method__){exp}
         result = :error
-      end
-
-      case result
-      when :error, :reject
-        ::Mqjob.logger.info(__method__) {"Redeliver messages! Current message id is: #{msg.message_id.inspect}"}
-        msg.nack
-      when :requeue
-        ::Mqjob.logger.info(__method__) {"Requeue! message id is: #{msg.message_id.inspect}"}
-        msg.ack
-        self.class.enqueue(msg.payload, in: 10)
-      else
-        ::Mqjob.logger.info(__method__) {"Acknowledge message!"}
-        msg.ack
       end
     end
 
